@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Claude Token Rotator</title>
+<style>
+  :root {
+    --bg: #0d0f14; --panel: #161a22; --panel2: #1d222c; --line: #262c38;
+    --text: #e6e9ef; --muted: #8a93a6; --green: #34d399; --red: #f87171;
+    --amber: #fbbf24; --accent: #7c9cff; --accent2: #5b76e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: radial-gradient(1200px 600px at 80% -10%, #1a2030 0%, var(--bg) 55%);
+    color: var(--text); font: 14px/1.5 "Segoe UI", system-ui, sans-serif; min-height: 100vh;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 60px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+  header h1 { font-size: 22px; margin: 0; letter-spacing: .3px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
+  .banner { background: #3a1d1d; border: 1px solid #6b2b2b; color: #ffd9d9;
+    padding: 10px 14px; border-radius: 10px; margin-bottom: 18px; display: none; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  tr:last-child td { border-bottom: none; }
+  tr.active { background: linear-gradient(90deg, rgba(124,156,255,.12), transparent); }
+  .acct { font-weight: 600; }
+  .key { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; }
+  .b-active { background: rgba(124,156,255,.18); color: var(--accent); }
+  .b-free { background: rgba(52,211,153,.15); color: var(--green); }
+  .b-lim { background: rgba(248,113,113,.15); color: var(--red); }
+  .b-err { background: rgba(251,191,36,.15); color: var(--amber); }
+  .timer { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .actions { display: flex; gap: 6px; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--text); padding: 6px 11px; transition: .15s; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.danger:hover { border-color: var(--red); color: var(--red); }
+  .add { margin-top: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .add h3 { margin: 0 0 12px; font-size: 15px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    padding: 10px 12px; border-radius: 8px; font: inherit; }
+  input:focus { outline: none; border-color: var(--accent); }
+  .primary { background: var(--accent2); border-color: var(--accent2); color: #fff; padding: 10px 18px; }
+  .primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 20px; }
+  .provbar { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 18px; }
+  .provrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .provrow label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  select { background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    padding: 9px 12px; border-radius: 8px; font: inherit; min-width: 180px; }
+  select:focus { outline: none; border-color: var(--accent); }
+  .provurl { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px; flex: 1; }
+  .provrow #provdel { margin-left: auto; }
+  .provadd { margin-top: 12px; }
+  .provadd summary { cursor: pointer; color: var(--accent); font-size: 13px; user-select: none; }
+  .provadd .row { margin-top: 12px; }
+  .clientbar { display: flex; gap: 8px; margin-bottom: 14px; }
+  .ctab { padding: 9px 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--muted); font-weight: 600; }
+  .ctab:hover { border-color: var(--accent); color: var(--accent); }
+  .ctab.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  .ctab .n { opacity: .7; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><span class="dot"></span><h1>Token Rotator</h1></header>
+  <p class="sub">Автосмена токенов при лимите · трафик идёт через <code>localhost</code></p>
+
+  <div class="clientbar">
+    <button class="ctab active" id="tab-claude" onclick="switchClient('claude')">Claude <span class="n" id="n-claude"></span></button>
+    <button class="ctab" id="tab-codex" onclick="switchClient('codex')">Codex <span class="n" id="n-codex"></span></button>
+  </div>
+
+  <div class="banner" id="banner">⚠️ Все токены активного провайдера в лимите — клиент будет получать ошибку, пока какой-нибудь не откатится.</div>
+
+  <div class="provbar">
+    <div class="provrow">
+      <label for="prov">Провайдер</label>
+      <select id="prov" onchange="switchProvider(this.value)"></select>
+      <span class="provurl" id="provurl"></span>
+      <button class="danger" id="provdel" onclick="deleteProvider()" title="Удалить активного провайдера и все его ключи">удалить провайдера</button>
+    </div>
+    <details class="provadd">
+      <summary>+ добавить провайдера</summary>
+      <div class="row">
+        <input id="pname" placeholder="имя (напр. aerolink)" />
+        <input id="purl" placeholder="https://capi.aerolink.lat/" />
+        <button class="primary" onclick="addProvider()">Добавить провайдера</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Аккаунт</th><th>Ключ</th><th>Статус</th><th>Сброс через</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <div class="add">
+    <h3>Добавить ключ <span class="key" id="addhint"></span></h3>
+    <div class="row">
+      <input id="acct" placeholder="аккаунт (email / имя)" />
+      <input id="key" placeholder="ключ (fe_oa_… / aero_live_…)" />
+      <button class="primary" onclick="addToken()">Добавить</button>
+    </div>
+  </div>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let now = Date.now(), tokens = [], fetchedAt = Date.now();
+let providers = [], clients = {}, client = 'claude';
+// view scoped to the selected client (recomputed each render)
+let activeProvider = null, activeId = null, baseUrl = '';
+
+function providersFor(c) { return providers.filter((p) => (p.client || 'claude') === c); }
+
+function applyClient() {
+  const cs = clients[client] || {};
+  activeProvider = cs.activeProvider || null;
+  activeId = cs.activeId || null;
+  baseUrl = cs.baseUrl || '';
+}
+
+function shortKey(k) { return k.length > 16 ? k.slice(0, 10) + '…' + k.slice(-4) : k; }
+
+function fmtCountdown(ms) {
+  if (ms <= 0) return 'готов';
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return (h ? h + 'ч ' : '') + String(m).padStart(2, '0') + 'м ' + String(sec).padStart(2, '0') + 'с';
+}
+
+function renderClientTabs() {
+  for (const c of ['claude', 'codex']) {
+    $('tab-' + c).classList.toggle('active', c === client);
+    $('n-' + c).textContent = '(' + providersFor(c).reduce((sum, p) => sum + tokens.filter((t) => t.provider === p.id).length, 0) + ')';
+  }
+}
+
+function renderProviders() {
+  const sel = $('prov');
+  sel.innerHTML = '';
+  const mine = providersFor(client);
+  for (const p of mine) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    const n = tokens.filter((t) => t.provider === p.id).length;
+    opt.textContent = p.name + ' (' + n + ')';
+    if (p.id === activeProvider) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  $('provurl').textContent = mine.length ? (baseUrl || '') : 'нет провайдеров — добавь ниже ↓';
+  $('provdel').style.display = mine.length ? '' : 'none';
+  const ap = mine.find((p) => p.id === activeProvider);
+  $('addhint').textContent = ap ? '→ ' + ap.name : (mine.length ? '' : '(сначала добавь провайдера)');
+}
+
+function render() {
+  const liveNow = now + (Date.now() - fetchedAt); // tick locally between fetches
+  applyClient();
+  renderClientTabs();
+  renderProviders();
+  const tbody = $('rows');
+  tbody.innerHTML = '';
+  let anyFree = false;
+
+  // Only show the active provider's pool — rotation is scoped to it.
+  const shown = tokens.filter((t) => t.provider === activeProvider);
+  for (const t of shown) {
+    const isActive = t.id === activeId;
+    const reset = t.resetAt ? new Date(t.resetAt).getTime() : 0;
+    const recovered = t.status === 'exhausted' && reset && reset <= liveNow;
+    const free = t.status === 'available' || recovered;
+    if (free) anyFree = true;
+
+    let badge;
+    if (isActive && free) badge = '<span class="badge b-active">● активный</span>';
+    else if (free) badge = '<span class="badge b-free">свободен</span>';
+    else if (t.status === 'error') badge = '<span class="badge b-err">ошибка</span>';
+    else badge = '<span class="badge b-lim">лимит</span>';
+
+    const timer = (t.status === 'exhausted' && reset && !recovered)
+      ? '<span class="timer" data-reset="' + reset + '">' + fmtCountdown(reset - liveNow) + '</span>'
+      : '<span class="timer">—</span>';
+
+    const tr = document.createElement('tr');
+    if (isActive && free) tr.className = 'active';
+    tr.innerHTML =
+      '<td class="acct">' + (t.account || '—') + (t.lastError ? ' <span class="key">(' + t.lastError + ')</span>' : '') + '</td>' +
+      '<td class="key">' + shortKey(t.key) + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' + timer + '</td>' +
+      '<td><div class="actions">' +
+        (!isActive ? '<button onclick="act(\'activate\',\'' + t.id + '\')">сделать активным</button>' : '') +
+        (!free ? '<button onclick="act(\'reset\',\'' + t.id + '\')">сбросить лимит</button>' : '') +
+        '<button class="danger" onclick="act(\'delete\',\'' + t.id + '\')">удалить</button>' +
+      '</div></td>';
+    tbody.appendChild(tr);
+  }
+  $('banner').style.display = (shown.length && !anyFree) ? 'block' : 'none';
+  $('foot').textContent = shown.length + ' токенов у активного провайдера · ' + tokens.length +
+    ' всего · обновлено ' + new Date(fetchedAt).toLocaleTimeString();
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/tokens');
+    const d = await r.json();
+    tokens = d.tokens || []; now = d.now; fetchedAt = Date.now();
+    providers = d.providers || []; clients = d.clients || {};
+    render();
+  } catch (e) { /* server down */ }
+}
+
+function switchClient(c) {
+  if (c === client) return;
+  client = c;
+  render(); // pure view switch — no server state changes
+}
+
+async function switchProvider(id) {
+  if (!id || id === activeProvider) return;
+  await fetch('/api/provider/activate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client, id }) });
+  load();
+}
+
+async function addProvider() {
+  const name = $('pname').value.trim(), url = $('purl').value.trim();
+  if (!url) return;
+  const r = await fetch('/api/provider', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client, name, baseUrl: url }) });
+  const d = await r.json();
+  if (!d.ok) { alert('Ошибка: ' + (d.error || '?')); return; }
+  $('pname').value = ''; $('purl').value = '';
+  // Jump straight to the new provider so you can drop its keys in immediately.
+  await switchProvider(d.id);
+}
+
+async function deleteProvider() {
+  const ap = providers.find((p) => p.id === activeProvider);
+  if (!ap) return;
+  const n = tokens.filter((t) => t.provider === activeProvider).length;
+  if (!confirm('Удалить провайдера «' + ap.name + '» и его ключей: ' + n + '?')) return;
+  const r = await fetch('/api/provider/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: activeProvider }) });
+  const d = await r.json();
+  if (!d.ok) { alert('Ошибка: ' + (d.error || '?')); return; }
+  load();
+}
+
+async function act(route, id) {
+  if (route === 'delete' && !confirm('Удалить токен?')) return;
+  await fetch('/api/' + route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client, id }) });
+  load();
+}
+
+async function addToken() {
+  const key = $('key').value.trim(), account = $('acct').value.trim();
+  if (!key) return;
+  const r = await fetch('/api/tokens', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client, key, account }) });
+  const d = await r.json();
+  if (!d.ok) { alert('Ошибка: ' + (d.error || '?')); return; }
+  $('key').value = ''; $('acct').value = '';
+  load();
+}
+
+// live countdown tick every second; full refresh every 5s
+setInterval(() => {
+  const live = now + (Date.now() - fetchedAt);
+  document.querySelectorAll('.timer[data-reset]').forEach((el) => {
+    el.textContent = fmtCountdown(Number(el.dataset.reset) - live);
+  });
+}, 1000);
+setInterval(load, 5000);
+load();
+</script>
+</body>
+</html>

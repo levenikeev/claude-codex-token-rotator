@@ -1,0 +1,12 @@
+# Optional seed file — imported into tokens.json ONCE on first run, then ignored.
+# You can skip this entirely and add keys from the dashboard instead.
+#
+# Format, one token per line:
+#   <key> - <account> <DD.MM.YYYY> <H:MM:SS>     # token is on cooldown until that time
+#   <key> - <account> -                          # token is free right now
+#
+# Copy this file to "tokens.txt" and put your real keys in. tokens.txt is
+# git-ignored so your keys never get committed.
+
+fe_oa_XXXXXXXXXXXXXXXXXXXX - you@example.com -
+fe_oa_YYYYYYYYYYYYYYYYYYYY - you2@example.com 30.06.2026 19:30:00

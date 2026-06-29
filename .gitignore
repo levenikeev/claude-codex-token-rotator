@@ -1,0 +1,25 @@
+# ── secrets & live state (NEVER commit — these hold real API keys / emails) ──
+tokens.json
+tokens.json.bak
+tokens.txt
+upstream.txt
+rotations.log
+
+# ── local editor / tooling state ──
+.claude/
+.opencode/
+.remember/
+.vscode/
+
+# ── test sandboxes created by smoke/migration checks ──
+.smoke/
+.migtest/
+.codextest/
+
+# ── node ──
+node_modules/
+npm-debug.log*
+
+# ── os cruft ──
+.DS_Store
+Thumbs.db
