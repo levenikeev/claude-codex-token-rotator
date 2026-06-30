@@ -32,13 +32,19 @@ function backupOnce(file, bak) {
 
 // The provider table we own. Regenerated wholesale every time so a partial edit
 // can never leave it half-written.
-function rotatorBlock(baseUrl) {
+//
+// We embed the key inline via `experimental_bearer_token` instead of `env_key`:
+// Codex's env_key points at an OS environment variable (which would have to be
+// set + the terminal restarted), whereas the bearer token lives right in the
+// config. Our proxy overwrites the Authorization header with the live rotated
+// token anyway, so this value only needs to be a valid fallback key.
+function rotatorBlock(baseUrl, key) {
   return [
     `[model_providers.${PROVIDER_ID}]`,
     `name = "${PROVIDER_ID}"`,
     `base_url = "${baseUrl}"`,
-    `env_key = "OPENAI_API_KEY"`,
-    `requires_openai_auth = false`,
+    `wire_api = "responses"`,
+    `experimental_bearer_token = "${key || ''}"`,
   ].join('\n');
 }
 
@@ -69,7 +75,7 @@ function ensureRootSelector(lines) {
   return lines;
 }
 
-function writeConfig(baseUrl) {
+function writeConfig(baseUrl, key) {
   backupOnce(CONFIG, CONFIG_BAK);
   let lines;
   try {
@@ -80,22 +86,42 @@ function writeConfig(baseUrl) {
   lines = stripRotatorBlock(lines);
   lines = ensureRootSelector(lines);
   let text = lines.join('\n').replace(/\s+$/, '');
-  text += '\n\n' + rotatorBlock(baseUrl) + '\n';
+  text += '\n\n' + rotatorBlock(baseUrl, key) + '\n';
   fs.writeFileSync(CONFIG, text);
   return text;
 }
 
 // Point Codex at the local proxy. Called once Codex has at least one provider.
-function ensureProvider(port) {
+function ensureProvider(port, key) {
   const local = `http://localhost:${port}`;
-  writeConfig(local);
+  writeConfig(local, key);
   console.log('[codex] model_provider=rotator base_url ->', local);
 }
 
-// Mirror the active token into auth.json so Codex sends it (the proxy rewrites it
-// to whatever token actually serves, keeping this in sync on every rotation).
+// Update the inline bearer token in our config block to the active key (the auth
+// Codex actually uses). Idempotent: only rewrites when the token changed, so the
+// per-request proxy hook can call this freely. Also mirrors auth.json as a
+// harmless fallback for the built-in openai provider.
 function syncActiveKey(key) {
   if (!key) return;
+  try {
+    const lines = fs.readFileSync(CONFIG, 'utf8').split('\n');
+    const start = lines.findIndex((l) => l.trim() === `[model_providers.${PROVIDER_ID}]`);
+    if (start !== -1) {
+      let end = start + 1;
+      while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
+      let found = false, changed = false;
+      const desired = `experimental_bearer_token = "${key}"`;
+      for (let i = start + 1; i < end; i++) {
+        if (/^\s*experimental_bearer_token\s*=/.test(lines[i])) {
+          found = true;
+          if (lines[i] !== desired) { lines[i] = desired; changed = true; }
+        }
+      }
+      if (!found) { lines.splice(end, 0, desired); changed = true; }
+      if (changed) { backupOnce(CONFIG, CONFIG_BAK); fs.writeFileSync(CONFIG, lines.join('\n')); }
+    }
+  } catch (_) {}
   backupOnce(AUTH, AUTH_BAK);
   let auth = {};
   try { auth = JSON.parse(fs.readFileSync(AUTH, 'utf8')); } catch (_) {}
@@ -107,12 +133,12 @@ function syncActiveKey(key) {
 }
 
 // On shutdown, repoint our provider block at the real upstream so Codex talks to
-// it directly (with the last-good token in auth.json) instead of a dead
-// localhost:port — the Codex analog of settings.restoreBaseUrl.
-function restoreUpstream(realUrl) {
+// it directly (with the last-good token inline) instead of a dead localhost:port
+// — the Codex analog of settings.restoreBaseUrl.
+function restoreUpstream(realUrl, key) {
   if (!realUrl) return;
   try {
-    writeConfig(realUrl);
+    writeConfig(realUrl, key);
     console.log('[codex] base_url restored ->', realUrl);
   } catch (_) {}
 }

@@ -39,7 +39,7 @@ const CLIENTS = {
 settings.ensureBaseUrl(PORT);
 // Only hijack ~/.codex once the user has opted into Codex by adding a provider.
 if (store.clientProviderCount('codex') > 0) {
-  codex.ensureProvider(CODEX_PORT);
+  codex.ensureProvider(CODEX_PORT, store.activeKey('codex'));
   codex.syncActiveKey(store.activeKey('codex'));
 }
 // Mirror the active Claude upstream for human reference / safe restore.
@@ -52,7 +52,7 @@ console.log('[rotator] codex upstream  =', store.activeUpstream('codex') || '(no
 function syncClientConfig(client) {
   if (client === 'codex') {
     if (store.clientProviderCount('codex') > 0) {
-      codex.ensureProvider(CODEX_PORT);
+      codex.ensureProvider(CODEX_PORT, store.activeKey('codex'));
       codex.syncActiveKey(store.activeKey('codex'));
     }
   } else {
@@ -427,7 +427,7 @@ function restoreAndExit(code) {
   if (!restored) {
     restored = true;
     settings.restoreBaseUrl(store.activeUpstream('claude'));
-    if (store.clientProviderCount('codex') > 0) codex.restoreUpstream(store.activeUpstream('codex'));
+    if (store.clientProviderCount('codex') > 0) codex.restoreUpstream(store.activeUpstream('codex'), store.activeKey('codex'));
   }
   process.exit(code);
 }
